@@ -1,188 +1,195 @@
-/* 기본 스타일 */
+/* 기본 초기화 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Pretendard', -apple-system, sans-serif; /* 깔끔한 폰트 */
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    background-color: #f0f2f5;
+    background-color: #f0f4f8; /* 아주 연한 푸른빛 배경 */
+    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    margin: 0;
 }
 
-/* 채팅 컨테이너 (수정) */
-#chat-container {
-    width: 90%;
-    max-width: 500px;
-    height: 70vh;
+/* 전체 앱 컨테이너 */
+.app-container {
+    width: 100%;
+    max-width: 1200px;
+    height: 90vh;
     background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    display: flex;
+    overflow: hidden;
+}
+
+/* 서버 사이드바 (가장 왼쪽) */
+.server-sidebar {
+    width: 70px;
+    background-color: #e3e9ef;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    position: relative; /* (추가) 팝업 메뉴의 기준점이 됨 */
+    align-items: center;
+    padding: 20px 0;
+    gap: 15px;
 }
 
-/* 메시지 창 */
-#chat-window {
-    flex-grow: 1;
+.server-icon {
+    width: 48px;
+    height: 48px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.server-icon:hover, .server-icon.active {
+    border-radius: 16px; /* 호버 시 네모낳게 변하는 디스코드 디테일 */
+    background-color: #1a73e8;
+    color: white;
+}
+
+/* 채널 사이드바 */
+.channel-sidebar {
+    width: 240px;
+    background-color: #f8f9fa;
+    border-right: 1px solid #e1e5ea;
+    padding: 20px;
+}
+
+.channel-header {
+    font-size: 16px;
+    color: #5f6368;
+    margin-bottom: 20px;
+}
+
+.channel-list {
+    list-style: none;
+}
+
+.channel-item {
+    padding: 10px 15px;
+    margin-bottom: 5px;
+    border-radius: 8px;
+    color: #3c4043;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.channel-item:hover {
+    background-color: #e8eaed;
+}
+
+.channel-item.active {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    font-weight: bold;
+}
+
+/* 메인 채팅 영역 */
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    padding: 20px;
+    border-bottom: 1px solid #e1e5ea;
+}
+
+.chat-header h3 {
+    color: #202124;
+}
+
+/* 메시지 목록 */
+.message-list {
+    flex: 1;
     padding: 20px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    background-color: #f7f7f7;
+    gap: 15px;
 }
 
-/* 메시지 버블 공통 */
 .message {
-    padding: 8px 13px; /* 이미지/파일을 위해 패딩 조정 */
-    border-radius: 20px;
-    max-width: 75%;
-    word-wrap: break-word;
-    line-height: 1.4;
-}
-
-/* 보낸 메시지 */
-.message.sent {
-    background-color: #007bff;
-    color: white;
-    align-self: flex-end;
-    border-bottom-right-radius: 5px;
-}
-
-/* 받은 메시지 */
-.message.received {
-    background-color: #e4e6eb;
-    color: #050505;
-    align-self: flex-start;
-    border-bottom-left-radius: 5px;
-}
-
-/* 채팅창 내부의 이미지 스타일 (유지) */
-.message img {
-    max-width: 100%;
-    border-radius: 10px;
-    display: block;
-    margin-top: 5px;
-}
-
-/* 파일 메시지 버블 스타일 (유지) */
-.message.file-bubble {
-    background-color: #f0f0f0;
-    border: 1px solid #ddd;
-    width: fit-content;
-}
-.file-bubble a {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    color: #333;
-    font-weight: 500;
-}
-.file-bubble a::before { content: '📄'; font-size: 1.2em; }
-.file-bubble.sent a { color: #333; }
-
-
-/* (추가) 실제 파일 입력창 숨기기 */
-#image-input, #file-input {
-    display: none;
+    gap: 15px;
 }
 
-/* (추가) 첨부파일 팝업 메뉴 */
-#attachment-menu {
-    position: absolute; /* chat-container 기준 */
-    bottom: 70px; /* 폼 높이(padding 15+15 + input 40) 위로 */
-    left: 10px;
-    width: 150px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    padding: 8px;
-    display: none; /* (수정) 기본 숨김, JS로 컨트롤 */
-    flex-direction: column;
-    gap: 5px;
-    z-index: 10;
-}
-
-/* (추가) 팝업 메뉴가 활성화됐을 때 */
-#attachment-menu.active {
-    display: flex;
-}
-
-/* (추가) 팝업 메뉴 안의 라벨 (버튼) */
-#attachment-menu label {
-    padding: 10px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 500;
-}
-#attachment-menu label:hover {
-    background-color: #f0f0f0;
-}
-
-
-/* (수정) 메시지 입력 폼 */
-#message-form {
-    display: flex;
-    align-items: center; /* 세로 중앙 정렬 */
-    padding: 15px;
-    border-top: 1px solid #ddd;
-    background-color: #ffffff;
-}
-
-/* (추가) '+' 첨부파일 버튼 */
-#attachment-button {
-    background-color: #f0f0f0;
-    color: #555;
-    border: none;
-    width: 40px; /* 크기 고정 */
-    height: 40px; /* 크기 고정 */
-    border-radius: 50%; /* 원형 */
-    font-size: 24px;
-    font-weight: bold;
-    cursor: pointer;
-    margin-right: 10px;
-    flex-shrink: 0; /* 크기 줄어들지 않게 */
+.message-avatar {
+    width: 40px;
+    height: 40px;
+    background-color: #e3e9ef;
+    border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    line-height: 1;
-}
-#attachment-button:hover {
-    background-color: #e0e0e0;
+    font-size: 20px;
 }
 
-/* 텍스트 입력창 (첫 번째 UI와 동일) */
-#message-input {
-    flex-grow: 1;
-    border: 1px solid #ccd0d5;
-    border-radius: 20px;
-    padding: 10px 15px;
-    font-size: 16px;
+.message-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.message-author {
+    font-size: 14px;
+    font-weight: bold;
+    color: #202124;
+    margin-bottom: 4px;
+}
+
+.message-text {
+    background-color: #f1f3f4;
+    padding: 10px 16px;
+    border-radius: 0 16px 16px 16px; /* 구글 챗 특유의 말풍선 모양 */
+    color: #202124;
+    font-size: 15px;
+    line-height: 1.4;
+    max-width: 80%;
+}
+
+/* 입력창 영역 */
+.chat-input-container {
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+#chat-input {
+    flex: 1;
+    padding: 15px 20px;
+    border: 1px solid #dadce0;
+    border-radius: 24px; /* 매우 둥근 텍스트 박스 */
+    font-size: 15px;
     outline: none;
-}
-#message-input:focus {
-    border-color: #007bff;
+    transition: border-color 0.2s;
 }
 
-/* 전송 버튼 (첫 번째 UI와 동일) */
-#message-form button[type="submit"] {
-    background-color: #007bff;
+#chat-input:focus {
+    border-color: #1a73e8;
+}
+
+#send-btn {
+    padding: 0 24px;
+    background-color: #1a73e8;
     color: white;
     border: none;
-    padding: 0 15px;
-    margin-left: 10px;
-    border-radius: 20px;
-    font-size: 16px;
+    border-radius: 24px;
+    font-size: 15px;
     font-weight: bold;
     cursor: pointer;
     transition: background-color 0.2s;
-    height: 40px; /* 입력창과 높이 맞춤 */
 }
-#message-form button[type="submit"]:hover {
-    background-color: #0056b3;
+
+#send-btn:hover {
+    background-color: #1557b0;
 }
