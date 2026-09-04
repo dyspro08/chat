@@ -3,30 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase 채팅 테스트</title>
+    <title>프라이빗 채팅</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="app-container">
+        <!-- 서버/그룹 목록 (디스코드의 가장 왼쪽 바) -->
+        <nav class="server-sidebar">
+            <div class="server-icon active">🏠</div>
+            <div class="server-icon">🎮</div>
+        </nav>
 
-    <div id="chat-container">
-        <div id="chat-window">
+        <!-- 채널 목록 -->
+        <nav class="channel-sidebar">
+            <h2 class="channel-header">내 친구들</h2>
+            <ul class="channel-list">
+                <li class="channel-item active"># 일반-수다</li>
+                <li class="channel-item"># 게임-방</li>
+                <li class="channel-item"># 과제-도움말</li>
+            </ul>
+        </nav>
+
+        <!-- 메인 채팅 영역 -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <h3># 일반-수다</h3>
+            </header>
+
+            <div class="message-list" id="message-list">
+                <!-- 환영 메시지 (예시) -->
+                <div class="message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <span class="message-author">시스템봇</span>
+                        <p class="message-text">채팅방에 오신 것을 환영합니다! 자유롭게 이야기해보세요.</p>
+                    </div>
+                </div>
             </div>
 
-        <div id="attachment-menu">
-            <label for="image-input">🖼️ 이미지</label>
-            <label for="file-input">📄 파일</label>
-        </div>
-
-        <input type="file" id="image-input" accept="image/*">
-        <input type="file" id="file-input">
-
-        <form id="message-form">
-            <button type="button" id="attachment-button">+</button>
-            
-            <input type="text" id="message-input" placeholder="메시지를 입력하세요..." autocomplete="off">
-            
-            <button type="submit">전송</button>
-        </form>
+            <!-- 입력창 (구글 챗 스타일의 둥근 디자인) -->
+            <div class="chat-input-container">
+                <input type="text" id="chat-input" placeholder="새로운 메시지 입력..." autocomplete="off">
+                <button id="send-btn">전송</button>
+            </div>
+        </main>
     </div>
 
     <script src="app.js"></script>
