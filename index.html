@@ -1,102 +1,158 @@
 <!doctype html>
 <!--
-  파일 목적: Firebase 기반 소규모 채팅 사이트의 단일 HTML 진입점을 제공한다.
-  책임 범위: 앱 레이아웃, 접근성 레이블, Firebase 모듈을 실행할 app.js 연결을 담당한다.
-  관련 모듈: app.js, style.css.
+  파일 목적: 디스코드 스타일의 웹 채팅 앱 UI 진입점
+  책임 범위: 좌측 서버 레일, 채널/DM 사이드바, 메인 홈/채팅 뷰 및 설정/서버 생성 모달 제공
+  관련 모듈: app.js, style.css
 -->
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f4ef" />
-    <title>Chat Ver2</title>
+    <title>Discord Style Chat</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="top-bar">
-        <div class="brand-block" aria-label="사이트 정보">
-          <p class="eyebrow">dyspro08.github.io/chat</p>
-          <h1>Chat Ver2</h1>
+      <!-- 1. 최좌측 서버 레일 (Server Rail) -->
+      <nav class="server-rail" aria-label="서버 목록">
+        <button id="rail-home-btn" class="rail-item is-active" type="button" title="홈">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+          </svg>
+        </button>
+        <div class="rail-divider"></div>
+        <button id="rail-general-btn" class="rail-item" type="button" title="전체 서버">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+        </button>
+        <div id="dynamic-server-list" class="dynamic-server-list"></div>
+        <button id="add-server-btn" class="rail-item add-btn" type="button" title="서버 만들기">
+          <span>+</span>
+        </button>
+      </nav>
+
+      <!-- 2. 서브 사이드바 (대화 / 채널 목록) -->
+      <aside class="sub-sidebar" aria-label="대화 목록">
+        <div class="sidebar-header">
+          <h2 id="sidebar-title">대화</h2>
+        </div>
+        <div class="sidebar-content">
+          <div class="sidebar-section">
+            <div class="section-label">최근 대화</div>
+            <div id="dm-list" class="dm-list"></div>
+          </div>
         </div>
 
-        <div class="top-actions">
-          <form id="profile-form" class="profile-form" hidden>
-            <label class="sr-only" for="profile-name">닉네임</label>
-            <input id="profile-name" name="profileName" maxlength="40" autocomplete="nickname" />
-            <button class="quiet-button" type="submit">저장</button>
-          </form>
-
-          <button id="notification-button" class="quiet-button" type="button">알림 켜기</button>
-          <button id="theme-button" class="quiet-button" type="button">테마</button>
-          <button id="sign-in-button" class="primary-button" type="button">Google 로그인</button>
-          <button id="sign-out-button" class="quiet-button" type="button" hidden>로그아웃</button>
-        </div>
-      </header>
-
-      <aside class="primary-rail" aria-label="주요 메뉴">
-        <button class="rail-button is-active" type="button" aria-label="전체 채팅" data-view="general">전체</button>
-        <button class="rail-button" type="button" aria-label="개인 대화 안내" data-view="direct">DM</button>
-      </aside>
-
-      <aside class="conversation-panel" aria-label="대화 목록">
-        <section class="panel-section">
-          <div class="section-title-row">
-            <h2>채널</h2>
-          </div>
-          <button id="general-chat-button" class="conversation-button is-active" type="button">
-            <span class="conversation-name">전체 채팅</span>
-            <span class="conversation-meta">로그인한 사용자 모두</span>
-          </button>
-        </section>
-
-        <section class="panel-section">
-          <div class="section-title-row">
-            <h2>개인 대화</h2>
-          </div>
-          <p class="helper-text">오른쪽 사용자 목록에서 대화할 사람을 선택하세요.</p>
-        </section>
-      </aside>
-
-      <main class="chat-main" aria-label="채팅 화면">
-        <section class="chat-header">
-          <div>
-            <p id="active-context" class="eyebrow">전체 채팅</p>
-            <h2 id="active-title">로그인이 필요합니다</h2>
-          </div>
-          <p id="auth-summary" class="auth-summary">Google 로그인 후 메시지를 주고받을 수 있습니다.</p>
-        </section>
-
-        <section id="message-list" class="message-list" aria-live="polite" aria-relevant="additions text"></section>
-
-        <button id="new-message-button" class="new-message-button" type="button" hidden>새 메시지 보기</button>
-
-        <form id="message-form" class="composer" aria-label="메시지 작성">
-          <label class="sr-only" for="message-input">메시지</label>
-          <textarea
-            id="message-input"
-            rows="1"
-            maxlength="500"
-            placeholder="로그인 후 메시지를 입력하세요"
-            disabled
-          ></textarea>
-          <div class="composer-footer">
-            <p id="status-line" class="status-line" role="status">준비 중입니다.</p>
-            <div class="composer-actions">
-              <span id="message-count" class="message-count">0/500</span>
-              <button id="send-button" class="primary-button" type="submit" disabled>전송</button>
+        <!-- 하단 유저 프로필 및 설정 버튼 -->
+        <div class="user-profile-bar">
+          <div class="user-profile-info">
+            <div id="my-avatar" class="avatar avatar-small">?</div>
+            <div class="user-text">
+              <span id="my-name" class="user-name">로그인 필요</span>
+              <span id="my-status" class="user-status-text">오프라인</span>
             </div>
           </div>
-        </form>
-      </main>
-
-      <aside class="member-panel" aria-label="등록 사용자">
-        <div class="section-title-row">
-          <h2>사용자</h2>
-          <span id="member-count" class="member-count">0명</span>
+          <button id="open-settings-btn" class="icon-button" type="button" title="설정">
+            ⚙️
+          </button>
         </div>
-        <div id="member-list" class="member-list"></div>
       </aside>
+
+      <!-- 3. 메인 영역 (홈 뷰 & 채팅 뷰) -->
+      <main class="main-area">
+        <!-- 3a. 홈 화면 (접속 중인 사용자 목록 & 검색) -->
+        <section id="home-view" class="view-panel">
+          <header class="main-header">
+            <div class="header-title">
+              <span class="header-icon">🏠</span>
+              <h2>홈</h2>
+            </div>
+          </header>
+          <div class="home-body">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input id="user-search-input" type="text" placeholder="사용자 검색" />
+            </div>
+            <div class="user-section">
+              <h3 id="user-count-label" class="section-subtitle">접속 중인 사용자 (0)</h3>
+              <div id="user-grid" class="user-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3b. 채팅 화면 -->
+        <section id="chat-view" class="view-panel" hidden>
+          <header class="main-header">
+            <div class="header-title">
+              <span id="chat-header-prefix" class="header-prefix">#</span>
+              <h2 id="chat-header-title">전체 채팅</h2>
+            </div>
+            <span id="chat-header-context" class="header-context">공개 채널</span>
+          </header>
+          <div id="message-list" class="message-list" aria-live="polite"></div>
+          <button id="new-message-button" class="new-message-button" type="button" hidden>새 메시지 보기</button>
+          
+          <form id="message-form" class="composer-form">
+            <div class="composer-inner">
+              <textarea
+                id="message-input"
+                rows="1"
+                maxlength="500"
+                placeholder="메시지를 입력하세요..."
+                disabled
+              ></textarea>
+              <button id="send-button" type="submit" class="send-button" disabled>전송</button>
+            </div>
+            <div class="composer-status-bar">
+              <span id="status-line" class="status-line">준비 중입니다.</span>
+              <span id="message-count" class="message-count">0/500</span>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <!-- 모달: 설정 -->
+    <div id="settings-modal" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>설정</h3>
+          <button id="close-settings-btn" class="modal-close-btn" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+          <form id="profile-form" class="settings-form">
+            <label for="profile-name">닉네임 변경</label>
+            <div class="input-group">
+              <input id="profile-name" type="text" maxlength="40" autocomplete="nickname" />
+              <button class="primary-button" type="submit">저장</button>
+            </div>
+          </form>
+          <div class="settings-actions">
+            <button id="notification-button" class="secondary-button" type="button">알림 켜기</button>
+            <button id="sign-in-button" class="primary-button" type="button">Google 로그인</button>
+            <button id="sign-out-button" class="danger-button" type="button" hidden>로그아웃</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모달: 서버 생성 -->
+    <div id="create-server-modal" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>서버 만들기</h3>
+          <button id="close-server-btn" class="modal-close-btn" type="button">✕</button>
+        </div>
+        <form id="create-server-form" class="modal-body">
+          <label for="server-name-input">서버 이름</label>
+          <input id="server-name-input" type="text" placeholder="새 서버 이름" maxlength="30" required />
+          <div class="modal-footer">
+            <button id="cancel-server-btn" class="secondary-button" type="button">취소</button>
+            <button type="submit" class="primary-button">생성</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <script type="module" src="./app.js"></script>
