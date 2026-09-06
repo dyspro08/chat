@@ -724,6 +724,11 @@ function bootApp() {
   });
 
   onAuthStateChanged(auth, handleAuthChange);
+
+  updateComposerState();
+  openGeneralChat();
+
+
   
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
