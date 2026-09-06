@@ -7,12 +7,12 @@
   "theme_color": "#1e1f22",
   "icons": [
     {
-      "src": "./ChatGPT Image 2026년 9월 6일 오후 10_02_51.png",
+      "src": "./icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./ChatGPT Image 2026년 9월 6일 오후 10_02_51.png",
+      "src": "./icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
