@@ -1,7 +1,6 @@
 /*
  * 파일 목적: Firebase 기반 디스코드 UI 채팅 앱 메인 로직
- * 책임 범위: Google 인증, Firestore 실시간 채팅/사용자/서버 구독, 홈/채팅 뷰 전환, 1:1 DM 및 서버 생성
- * 관련 모듈: index.html, style.css
+ * 책임 범위: Google 인증, Firestore 실시간 채팅/사용자/서버 구독, 1:1 DM 및 서버 참가/생성, PWA 및 메시지 관리
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
@@ -17,13 +16,18 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   getFirestore,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
-  setDoc
+  setDoc,
+  updateDoc,
+  where,
+  arrayUnion,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -37,6 +41,7 @@ const firebaseConfig = {
 };
 
 const RECENT_MESSAGE_LIMIT = 80;
+const MAX_MESSAGES_CLEANUP = 250;
 const MAX_MESSAGE_LENGTH = 500;
 const PROFILE_NAME_LIMIT = 40;
 const GENERAL_CHAT_ID = "general";
@@ -52,7 +57,8 @@ const elements = {
   railGeneralBtn: document.querySelector("#rail-general-btn"),
   dynamicServerList: document.querySelector("#dynamic-server-list"),
   addServerBtn: document.querySelector("#add-server-btn"),
-  
+  joinServerOpenBtn: document.querySelector("#join-server-open-btn"),
+
   // Sidebar
   sidebarTitle: document.querySelector("#sidebar-title"),
   dmList: document.querySelector("#dm-list"),
@@ -91,12 +97,19 @@ const elements = {
   signInButton: document.querySelector("#sign-in-button"),
   signOutButton: document.querySelector("#sign-out-button"),
 
-  // Server Modal
+  // Create Server Modal
   createServerModal: document.querySelector("#create-server-modal"),
   closeServerBtn: document.querySelector("#close-server-btn"),
   cancelServerBtn: document.querySelector("#cancel-server-btn"),
   createServerForm: document.querySelector("#create-server-form"),
-  serverNameInput: document.querySelector("#server-name-input")
+  serverNameInput: document.querySelector("#server-name-input"),
+
+  // Join Server Modal
+  joinServerModal: document.querySelector("#join-server-modal"),
+  closeJoinServerBtn: document.querySelector("#close-join-server-btn"),
+  cancelJoinServerBtn: document.querySelector("#cancel-join-server-btn"),
+  joinServerForm: document.querySelector("#join-server-form"),
+  inviteCodeInput: document.querySelector("#invite-code-input")
 };
 
 const state = {
@@ -149,14 +162,14 @@ function updateRailActiveState() {
 function createAvatarElement(profile, sizeClass = "") {
   const avatar = document.createElement("div");
   avatar.className = `avatar ${sizeClass}`.trim();
-  if (profile.photoURL) {
+  if (profile && profile.photoURL) {
     const img = document.createElement("img");
     img.src = profile.photoURL;
     img.alt = "";
     img.referrerPolicy = "no-referrer";
     avatar.appendChild(img);
   } else {
-    const fallback = (profile.displayName || profile.email || "U").trim().slice(0, 1).toUpperCase();
+    const fallback = ((profile && profile.displayName) || (profile && profile.email) || "U").trim().slice(0, 1).toUpperCase();
     avatar.textContent = fallback;
   }
   return avatar;
@@ -170,8 +183,9 @@ function renderUserProfileBar() {
   if (state.currentUser) {
     elements.myName.textContent = state.currentUser.displayName || "사용자";
     elements.myStatus.textContent = "온라인";
-    elements.myAvatar.replaceWith(createAvatarElement(state.currentUser, "avatar-small"));
-    elements.myAvatar = document.querySelector(".user-profile-info .avatar");
+    const newAvatar = createAvatarElement(state.currentUser, "avatar-small");
+    elements.myAvatar.replaceWith(newAvatar);
+    elements.myAvatar = newAvatar;
     elements.profileName.value = state.currentUser.displayName || "";
     elements.signInButton.hidden = true;
     elements.signOutButton.hidden = false;
@@ -187,7 +201,7 @@ function renderUserProfileBar() {
 function renderUserGrid() {
   elements.userGrid.replaceChildren();
   const searchFilter = elements.userSearchInput.value.trim().toLowerCase();
-  
+
   const allProfiles = Array.from(state.profiles.values());
   const filtered = allProfiles.filter((p) => {
     if (state.currentUser && p.uid === state.currentUser.uid) return false;
@@ -245,7 +259,7 @@ function renderRecentDms() {
     const avatar = createAvatarElement(profile, "avatar-small");
     const name = document.createElement("span");
     name.className = "dm-name";
-    name.textContent = profile.displayName;
+    name.textContent = profile.displayName || "사용자";
 
     item.appendChild(avatar);
     item.appendChild(name);
@@ -339,31 +353,26 @@ function scrollMessagesToBottom() {
 
 function subscribeActiveMessages() {
   state.unsubscribeMessages?.();
-  state.unsubscribeMessages = null;
-
-  if (!state.currentUser) {
-    renderMessages([]);
-    return;
-  }
-
-  const q = query(getActiveMessageCollection(), orderBy("createdAt", "desc"), limit(RECENT_MESSAGE_LIMIT));
-  let isInitial = true;
+  const colRef = getActiveMessageCollection();
+  const q = query(colRef, orderBy("createdAt", "asc"), limit(RECENT_MESSAGE_LIMIT));
 
   state.unsubscribeMessages = onSnapshot(
     q,
     (snapshot) => {
-      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
+      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const isAtBottom = elements.messageList.scrollHeight - elements.messageList.scrollTop <= elements.messageList.clientHeight + 120;
+
       renderMessages(messages);
-      if (isInitial || elements.messageList.scrollHeight - elements.messageList.scrollTop - elements.messageList.clientHeight < 120) {
-        requestAnimationFrame(scrollMessagesToBottom);
+
+      if (isAtBottom) {
+        scrollMessagesToBottom();
       } else {
         elements.newMessageButton.hidden = false;
       }
-      isInitial = false;
-      setStatus("실시간 연결됨", "success");
     },
-    (error) => {
-      setStatus(`불러오기 실패: ${error.message}`, "error");
+    (err) => {
+      console.error("메시지 수신 오류:", err);
+      setStatus("메시지를 불러오는 데 실패했습니다.", "error");
     }
   );
 }
@@ -378,25 +387,20 @@ function openGeneralChat() {
   switchView("chat");
   renderActiveConversationHeader();
   subscribeActiveMessages();
-  renderRecentDms();
 }
 
 async function openDirectChat(profile) {
   if (!state.currentUser) {
-    setStatus("로그인이 필요합니다.", "error");
-    openSettingsModal();
+    setStatus("1:1 대화를 이용하려면 로그인이 필요합니다.", "error");
     return;
   }
-  if (profile.uid === state.currentUser.uid) return;
-
   const chatId = createDirectChatId(state.currentUser.uid, profile.uid);
-  const chatRef = doc(db, "directChats", chatId);
 
   try {
-    const snap = await getDoc(chatRef);
+    const directRef = doc(db, "directChats", chatId);
+    const snap = await getDoc(directRef);
     if (!snap.exists()) {
-      await setDoc(chatRef, {
-        id: chatId,
+      await setDoc(directRef, {
         participants: [state.currentUser.uid, profile.uid],
         createdAt: serverTimestamp()
       });
@@ -423,7 +427,7 @@ function openServerChat(server) {
   state.activeConversation = {
     id: server.id,
     title: server.name,
-    context: "서버 채널",
+    context: `서버 채널 (초대 코드: ${server.inviteCode || '없음'})`,
     type: "server"
   };
   switchView("chat");
@@ -473,7 +477,7 @@ function renderServerRail() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "rail-item server-btn";
-    btn.title = server.name;
+    btn.title = `${server.name} (코드: ${server.inviteCode || ''})`;
     btn.dataset.serverId = server.id;
     btn.textContent = server.name.slice(0, 2);
 
@@ -488,67 +492,154 @@ function renderServerRail() {
 function updateComposerState() {
   const len = elements.messageInput.value.length;
   const hasText = elements.messageInput.value.trim().length > 0;
-  const canSend = Boolean(state.currentUser) && hasText && len <= MAX_MESSAGE_LENGTH;
-  
+  const isLoggedIn = !!state.currentUser;
+
+  elements.messageInput.disabled = !isLoggedIn;
+  elements.sendButton.disabled = !isLoggedIn || !hasText;
   elements.messageCount.textContent = `${len}/${MAX_MESSAGE_LENGTH}`;
-  elements.sendButton.disabled = !canSend;
-  elements.messageInput.disabled = !state.currentUser;
-  elements.messageInput.placeholder = state.currentUser ? "메시지를 입력하세요..." : "로그인 후 메시지를 작성할 수 있습니다.";
+
+  if (!isLoggedIn) {
+    setStatus("로그인이 필요합니다.", "error");
+    elements.messageInput.placeholder = "로그인 후 메시지를 작성하세요...";
+  } else {
+    elements.messageInput.placeholder = "메시지를 입력하세요...";
+  }
+
+  // 자동 높이 조절
+  elements.messageInput.style.height = "auto";
+  elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 120) + "px";
+}
+
+async function cleanupOldMessages(colRef) {
+  try {
+    const q = query(colRef, orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    if (snapshot.docs.length > MAX_MESSAGES_CLEANUP) {
+      const docsToDelete = snapshot.docs.slice(MAX_MESSAGES_CLEANUP);
+      docsToDelete.forEach(async (docSnap) => {
+        await deleteDoc(docSnap.ref);
+      });
+    }
+  } catch (err) {
+    console.warn("메시지 자동 정리 중 예외:", err);
+  }
 }
 
 async function sendMessage(e) {
-  e.preventDefault();
+  if (e) e.preventDefault();
   if (!state.currentUser) return;
+
   const text = elements.messageInput.value.trim();
   if (!text) return;
 
-  elements.sendButton.disabled = true;
+  elements.messageInput.value = "";
+  updateComposerState();
+
   try {
-    await addDoc(getActiveMessageCollection(), {
+    const colRef = getActiveMessageCollection();
+    await addDoc(colRef, {
+      text,
       uid: state.currentUser.uid,
       displayName: state.currentUser.displayName || "사용자",
       photoURL: state.currentUser.photoURL || null,
-      text,
       createdAt: serverTimestamp()
     });
-    elements.messageInput.value = "";
-    updateComposerState();
+
+    scrollMessagesToBottom();
+    setStatus("전송 완료", "success");
+
+    // 250개 초과 메시지 정리
+    void cleanupOldMessages(colRef);
   } catch (err) {
+    console.error("메시지 전송 오류:", err);
     setStatus(`전송 실패: ${err.message}`, "error");
-  } finally {
-    updateComposerState();
-    elements.messageInput.focus();
   }
 }
 
-// Modal Handlers
-function openSettingsModal() { elements.settingsModal.hidden = false; }
-function closeSettingsModal() { elements.settingsModal.hidden = true; }
-function openServerModal() { elements.createServerModal.hidden = false; }
-function closeServerModal() { elements.createServerModal.hidden = true; }
+function openSettingsModal() {
+  elements.settingsModal.hidden = false;
+}
+function closeSettingsModal() {
+  elements.settingsModal.hidden = true;
+}
+function openServerModal() {
+  if (!state.currentUser) {
+    setStatus("서버를 생성하려면 로그인이 필요합니다.", "error");
+    return;
+  }
+  elements.createServerModal.hidden = false;
+}
+function closeServerModal() {
+  elements.createServerModal.hidden = true;
+}
+function openJoinServerModal() {
+  if (!state.currentUser) {
+    setStatus("서버에 참가하려면 로그인이 필요합니다.", "error");
+    return;
+  }
+  elements.joinServerModal.hidden = false;
+}
+function closeJoinServerModal() {
+  elements.joinServerModal.hidden = true;
+}
 
 async function createServer(e) {
   e.preventDefault();
-  if (!state.currentUser) {
-    setStatus("서버를 생성하려면 로그인이 필요합니다.", "error");
-    closeServerModal();
-    openSettingsModal();
-    return;
-  }
+  if (!state.currentUser) return;
+
   const name = elements.serverNameInput.value.trim();
   if (!name) return;
+
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
   try {
     const serverRef = await addDoc(collection(db, "servers"), {
       name,
+      inviteCode,
+      members: [state.currentUser.uid],
       createdBy: state.currentUser.uid,
       createdAt: serverTimestamp()
     });
     elements.serverNameInput.value = "";
     closeServerModal();
-    openServerChat({ id: serverRef.id, name });
+    openServerChat({ id: serverRef.id, name, inviteCode });
+    setStatus(`서버 생성 완료! (초대 코드: ${inviteCode})`, "success");
   } catch (err) {
     setStatus(`서버 생성 실패: ${err.message}`, "error");
+  }
+}
+
+async function joinServerByCode(e) {
+  e.preventDefault();
+  if (!state.currentUser) return;
+
+  const code = elements.inviteCodeInput.value.trim().toUpperCase();
+  if (!code) return;
+
+  try {
+    const serversRef = collection(db, "servers");
+    const q = query(serversRef, where("inviteCode", "==", code));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      setStatus("유효하지 않은 초대 코드입니다.", "error");
+      return;
+    }
+
+    const serverDoc = snapshot.docs[0];
+    const serverId = serverDoc.id;
+    const serverData = serverDoc.data();
+
+    await updateDoc(doc(db, "servers", serverId), {
+      members: arrayUnion(state.currentUser.uid)
+    });
+
+    elements.inviteCodeInput.value = "";
+    closeJoinServerModal();
+    openServerChat({ id: serverId, name: serverData.name, inviteCode: serverData.inviteCode });
+    setStatus(`'${serverData.name}' 서버에 참가했습니다!`, "success");
+  } catch (err) {
+    setStatus(`서버 참가 실패: ${err.message}`, "error");
   }
 }
 
@@ -593,6 +684,7 @@ function bootApp() {
   elements.railHomeBtn.addEventListener("click", () => switchView("home"));
   elements.railGeneralBtn.addEventListener("click", openGeneralChat);
   elements.addServerBtn.addEventListener("click", openServerModal);
+  elements.joinServerOpenBtn.addEventListener("click", openJoinServerModal);
 
   // Home search filter
   elements.userSearchInput.addEventListener("input", renderUserGrid);
@@ -604,29 +696,59 @@ function bootApp() {
   elements.signOutButton.addEventListener("click", () => signOut(auth));
   elements.profileForm.addEventListener("submit", (e) => void updateDisplayName(e));
 
+  // Notification Button
+  elements.notificationButton.addEventListener("click", async () => {
+    if (!("Notification" in window)) {
+      alert("이 브라우저는 알림을 지원하지 않습니다.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      alert("알림이 활성화되었습니다!");
+    }
+  });
+
   // Server Modal Events
   elements.closeServerBtn.addEventListener("click", closeServerModal);
   elements.cancelServerBtn.addEventListener("click", closeServerModal);
   elements.createServerForm.addEventListener("submit", (e) => void createServer(e));
 
-  // Chat
+  // Join Server Modal Events
+  elements.closeJoinServerBtn.addEventListener("click", closeJoinServerModal);
+  elements.cancelJoinServerBtn.addEventListener("click", closeJoinServerModal);
+  elements.joinServerForm.addEventListener("submit", (e) => void joinServerByCode(e));
+
+  // Chat & Composition Events
   elements.messageForm.addEventListener("submit", (e) => void sendMessage(e));
   elements.messageInput.addEventListener("input", updateComposerState);
   elements.newMessageButton.addEventListener("click", scrollMessagesToBottom);
 
+  // 한글 조합(IME) 중복 전송 방지
+  elements.messageInput.addEventListener("compositionstart", () => {
+    state.isComposingKorean = true;
+  });
+  elements.messageInput.addEventListener("compositionend", () => {
+    state.isComposingKorean = false;
+  });
   elements.messageInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !state.isComposingKorean && !e.isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !state.isComposingKorean) {
       e.preventDefault();
-      elements.messageForm.requestSubmit();
+      void sendMessage(e);
     }
   });
-  elements.messageInput.addEventListener("compositionstart", () => { state.isComposingKorean = true; });
-  elements.messageInput.addEventListener("compositionend", () => { state.isComposingKorean = false; });
 
+  // Auth Observer
   onAuthStateChanged(auth, handleAuthChange);
-  switchView("home");
-  subscribeProfiles();
-  subscribeServers();
+
+  // PWA 서비스 워커 등록
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("./sw.js")
+        .then(() => console.log("서비스 워커 등록 성공"))
+        .catch((err) => console.error("서비스 워커 등록 실패:", err));
+    });
+  }
 }
 
-bootApp();
+document.addEventListener("DOMContentLoaded", bootApp);
