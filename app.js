@@ -402,15 +402,16 @@ function updateComposerState() {
   elements.sendButton.disabled = !isLoggedIn || !hasText;
   elements.messageCount.textContent = `${len}/${MAX_MESSAGE_LENGTH}`;
   if (!isLoggedIn) {
-    setStatus("로그인이 필요합니다.", "error");
+    setStatus("로그인이 필요합니다. (⚙️ 설정에서 로그인)", "error");
     elements.messageInput.placeholder = "로그인 후 메시지를 작성하세요...";
   } else {
+    // 로그인에 성공했을 때 "준비 중입니다." 문구를 초기화/변경
+    setStatus("온라인", "success"); 
     elements.messageInput.placeholder = "메시지를 입력하세요...";
   }
   elements.messageInput.style.height = "auto";
   elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 120) + "px";
 }
-
 async function cleanupOldMessages(colRef) {
   try {
     const q = query(colRef, orderBy("createdAt", "desc"));
