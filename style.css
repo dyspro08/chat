@@ -29,14 +29,24 @@ html, body {
   color: var(--text-normal);
   overflow: hidden;
 }
+/* 배경화면 설정 시 가독성을 위한 오버레이 레이어 */
+#bg-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-color: rgba(30, 31, 34, 0.7);
+  display: none;
+  z-index: -1;
+}
 .app-shell {
   display: flex;
   width: 100vw;
   height: 100vh;
+  /* 커스텀 배경을 위해 app-shell을 투명하게 변경 */
+  background: transparent;
 }
 .server-rail {
   width: 72px;
-  background-color: var(--bg-rail);
+  background-color: rgba(30, 31, 34, 0.9);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -92,7 +102,7 @@ html, body {
 }
 .sub-sidebar {
   width: 240px;
-  background-color: var(--bg-sidebar);
+  background-color: rgba(43, 45, 49, 0.95);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -197,7 +207,7 @@ html, body {
 }
 .main-area {
   flex: 1;
-  background-color: var(--bg-primary);
+  background-color: transparent;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -214,8 +224,9 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 2px solid var(--border-color);
+  border-bottom: 2px solid rgba(31, 32, 35, 0.5);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  background-color: rgba(49, 51, 56, 0.85);
 }
 .header-title {
   display: flex;
@@ -237,14 +248,21 @@ html, body {
   flex: 1;
   overflow-y: auto;
 }
+.home-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
 .search-box {
   background-color: #1e1f22;
   display: flex;
   align-items: center;
   padding: 8px 12px;
   border-radius: var(--radius-small);
-  margin-bottom: 24px;
-  max-width: 600px;
+  flex: 1;
+  max-width: 400px;
 }
 .search-icon {
   margin-right: 8px;
@@ -256,6 +274,10 @@ html, body {
   outline: none;
   color: var(--text-normal);
   width: 100%;
+}
+.bg-controls {
+  display: flex;
+  gap: 8px;
 }
 .section-subtitle {
   font-size: 13px;
@@ -269,7 +291,7 @@ html, body {
   gap: 12px;
 }
 .user-card {
-  background-color: var(--bg-card);
+  background-color: rgba(43, 45, 49, 0.9);
   padding: 12px;
   border-radius: var(--radius-medium);
   display: flex;
@@ -279,7 +301,7 @@ html, body {
   transition: background 0.15s ease;
 }
 .user-card:hover {
-  background-color: var(--bg-card-hover);
+  background-color: rgba(53, 55, 60, 0.95);
 }
 .user-card-name {
   font-weight: 600;
@@ -454,7 +476,7 @@ html, body {
   gap: 8px;
   margin-top: 8px;
 }
-.input-group input, .modal-body input {
+.input-group input, .modal-body input[type="text"] {
   flex: 1;
   background-color: #1e1f22;
   border: 1px solid #3f4248;
@@ -513,8 +535,6 @@ html, body {
   margin-bottom: 4px;
   color: var(--text-normal);
 }
-
-/* [추가됨] 컨텍스트 메뉴(우클릭 팝업창) 디자인 */
 .context-menu {
   position: fixed;
   background-color: #111214;
