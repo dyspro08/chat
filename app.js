@@ -1,17 +1,9 @@
 /*
- * 파일 목적: Firebase 초기화, Google 로그인, 공개 프로필, 전체 채팅, 1:1 대화의 화면 동작을 담당한다.
- * 책임 범위: DOM 이벤트 연결, Firestore 실시간 구독, 메시지 전송, 알림 권한 요청, 로컬 테마 저장.
- * 관련 모듈: index.html, style.css.
+ * 파일 목적: Firebase 기반 디스코드 UI 채팅 앱 메인 로직
+ * 책임 범위: Google 인증, Firestore 실시간 채팅/사용자/서버 구독, 홈/채팅 뷰 전환, 1:1 DM 및 서버 생성
+ * 관련 모듈: index.html, style.css
  */
-
-// Firebase 앱 인스턴스를 만들기 위한 초기화 함수다.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-// 지원 환경에서만 웹 Analytics를 켜기 위해 지원 여부 검사와 Analytics 생성 함수를 가져온다.
-import {
-  getAnalytics,
-  isSupported as isAnalyticsSupported
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
-// Google 로그인, 로그아웃, 인증 상태 구독, 표시 이름 갱신에 필요한 Auth 함수다.
 import {
   getAuth,
   GoogleAuthProvider,
@@ -20,7 +12,6 @@ import {
   signOut,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-// Firestore 문서 생성, 조회, 실시간 구독, 서버 시각 기록에 필요한 함수다.
 import {
   addDoc,
   collection,
@@ -35,7 +26,6 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-// Firebase 콘솔에서 발급된 공개 웹앱 설정이다. API 키는 브라우저용 식별자이며 서버 비밀키가 아니다.
 const firebaseConfig = {
   apiKey: "AIzaSyA2xiGVR1OJfHoQsBqIQkzRvDA5jqnWSAA",
   authDomain: "chat-ver2-24bb0.firebaseapp.com",
@@ -46,163 +36,300 @@ const firebaseConfig = {
   measurementId: "G-ZHM9VZWDD0"
 };
 
-// 한 번에 구독할 최신 메시지 개수다.
 const RECENT_MESSAGE_LIMIT = 80;
-// 채팅 메시지 본문 최대 길이다.
 const MAX_MESSAGE_LENGTH = 500;
-// 사용자가 화면에서 바꿀 수 있는 닉네임 최대 길이다.
 const PROFILE_NAME_LIMIT = 40;
-// 브라우저 알림 미리보기에서 보여줄 본문 최대 길이다.
-const NOTIFICATION_PREVIEW_LENGTH = 80;
-// 로컬 스토리지에 저장하는 테마 설정 키다.
-const THEME_STORAGE_KEY = "chat-ver2-theme";
-// 전체 사용자 채팅을 나타내는 고정 대화 식별자다.
 const GENERAL_CHAT_ID = "general";
 
-// Firebase 앱의 루트 인스턴스다.
 const app = initializeApp(firebaseConfig);
-// Firestore 데이터베이스 접근 인스턴스다.
 const db = getFirestore(app);
-// Firebase Auth 접근 인스턴스다.
 const auth = getAuth(app);
-// Google 로그인 팝업 제공자다.
 const googleProvider = new GoogleAuthProvider();
-// Analytics가 지원될 때만 저장되는 인스턴스다.
-let analytics = null;
 
-// 화면 요소 참조를 한 곳에서 관리한다.
 const elements = {
-  activeContext: document.querySelector("#active-context"),
-  activeTitle: document.querySelector("#active-title"),
-  authSummary: document.querySelector("#auth-summary"),
-  generalChatButton: document.querySelector("#general-chat-button"),
-  memberCount: document.querySelector("#member-count"),
-  memberList: document.querySelector("#member-list"),
-  messageCount: document.querySelector("#message-count"),
-  messageForm: document.querySelector("#message-form"),
-  messageInput: document.querySelector("#message-input"),
+  // Navigation & Rail
+  railHomeBtn: document.querySelector("#rail-home-btn"),
+  railGeneralBtn: document.querySelector("#rail-general-btn"),
+  dynamicServerList: document.querySelector("#dynamic-server-list"),
+  addServerBtn: document.querySelector("#add-server-btn"),
+  
+  // Sidebar
+  sidebarTitle: document.querySelector("#sidebar-title"),
+  dmList: document.querySelector("#dm-list"),
+  myAvatar: document.querySelector("#my-avatar"),
+  myName: document.querySelector("#my-name"),
+  myStatus: document.querySelector("#my-status"),
+  openSettingsBtn: document.querySelector("#open-settings-btn"),
+
+  // Views
+  homeView: document.querySelector("#home-view"),
+  chatView: document.querySelector("#chat-view"),
+
+  // Home View Elements
+  userSearchInput: document.querySelector("#user-search-input"),
+  userCountLabel: document.querySelector("#user-count-label"),
+  userGrid: document.querySelector("#user-grid"),
+
+  // Chat View Elements
+  chatHeaderPrefix: document.querySelector("#chat-header-prefix"),
+  chatHeaderTitle: document.querySelector("#chat-header-title"),
+  chatHeaderContext: document.querySelector("#chat-header-context"),
   messageList: document.querySelector("#message-list"),
   newMessageButton: document.querySelector("#new-message-button"),
-  notificationButton: document.querySelector("#notification-button"),
+  messageForm: document.querySelector("#message-form"),
+  messageInput: document.querySelector("#message-input"),
+  sendButton: document.querySelector("#send-button"),
+  statusLine: document.querySelector("#status-line"),
+  messageCount: document.querySelector("#message-count"),
+
+  // Settings Modal
+  settingsModal: document.querySelector("#settings-modal"),
+  closeSettingsBtn: document.querySelector("#close-settings-btn"),
   profileForm: document.querySelector("#profile-form"),
   profileName: document.querySelector("#profile-name"),
-  sendButton: document.querySelector("#send-button"),
+  notificationButton: document.querySelector("#notification-button"),
   signInButton: document.querySelector("#sign-in-button"),
   signOutButton: document.querySelector("#sign-out-button"),
-  statusLine: document.querySelector("#status-line"),
-  themeButton: document.querySelector("#theme-button")
+
+  // Server Modal
+  createServerModal: document.querySelector("#create-server-modal"),
+  closeServerBtn: document.querySelector("#close-server-btn"),
+  cancelServerBtn: document.querySelector("#cancel-server-btn"),
+  createServerForm: document.querySelector("#create-server-form"),
+  serverNameInput: document.querySelector("#server-name-input")
 };
 
-// 앱의 현재 사용자, 대화, 실시간 구독 해제 함수를 보관하는 상태 객체다.
 const state = {
+  activeView: "home", // "home" | "chat"
   activeConversation: {
     id: GENERAL_CHAT_ID,
     title: "전체 채팅",
     context: "공개 채널",
-    type: "general"
+    type: "general" // "general" | "direct" | "server"
   },
   currentUser: null,
   isComposingKorean: false,
   profiles: new Map(),
+  servers: [],
+  recentDms: new Map(),
   unsubscribeMessages: null,
-  unsubscribeProfiles: null
+  unsubscribeProfiles: null,
+  unsubscribeServers: null
 };
 
 auth.languageCode = "ko";
-
-void isAnalyticsSupported()
-  .then((isSupported) => {
-    if (isSupported) {
-      analytics = getAnalytics(app);
-    }
-  })
-  .catch(() => {
-    analytics = null;
-  });
 
 function setStatus(message, tone = "info") {
   elements.statusLine.textContent = message;
   elements.statusLine.dataset.tone = tone;
 }
 
-function renderAuthState() {
-  const isSignedIn = Boolean(state.currentUser);
+function switchView(viewName) {
+  state.activeView = viewName;
+  if (viewName === "home") {
+    elements.homeView.hidden = false;
+    elements.chatView.hidden = true;
+    elements.railHomeBtn.classList.add("is-active");
+    elements.railGeneralBtn.classList.remove("is-active");
+    updateRailActiveState();
+  } else {
+    elements.homeView.hidden = true;
+    elements.chatView.hidden = false;
+    elements.railHomeBtn.classList.remove("is-active");
+  }
+}
 
-  elements.signInButton.hidden = isSignedIn;
-  elements.signOutButton.hidden = !isSignedIn;
-  elements.profileForm.hidden = !isSignedIn;
-  elements.messageInput.disabled = !isSignedIn;
-  elements.sendButton.disabled = !isSignedIn;
-  elements.messageInput.placeholder = isSignedIn ? "메시지를 입력하세요" : "로그인 후 메시지를 입력하세요";
+function updateRailActiveState() {
+  const serverButtons = elements.dynamicServerList.querySelectorAll(".rail-item");
+  serverButtons.forEach((btn) => {
+    btn.classList.toggle("is-active", state.activeView === "chat" && btn.dataset.serverId === state.activeConversation.id);
+  });
+}
 
-  if (isSignedIn) {
-    elements.authSummary.textContent = `${state.currentUser.displayName ?? "사용자"}님으로 로그인했습니다.`;
-    elements.profileName.value = state.currentUser.displayName ?? "";
+function createAvatarElement(profile, sizeClass = "") {
+  const avatar = document.createElement("div");
+  avatar.className = `avatar ${sizeClass}`.trim();
+  if (profile.photoURL) {
+    const img = document.createElement("img");
+    img.src = profile.photoURL;
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    avatar.appendChild(img);
+  } else {
+    const fallback = (profile.displayName || profile.email || "U").trim().slice(0, 1).toUpperCase();
+    avatar.textContent = fallback;
+  }
+  return avatar;
+}
+
+function createDirectChatId(uid1, uid2) {
+  return [uid1, uid2].sort().join("__");
+}
+
+function renderUserProfileBar() {
+  if (state.currentUser) {
+    elements.myName.textContent = state.currentUser.displayName || "사용자";
+    elements.myStatus.textContent = "온라인";
+    elements.myAvatar.replaceWith(createAvatarElement(state.currentUser, "avatar-small"));
+    elements.myAvatar = document.querySelector(".user-profile-info .avatar");
+    elements.profileName.value = state.currentUser.displayName || "";
+    elements.signInButton.hidden = true;
+    elements.signOutButton.hidden = false;
+  } else {
+    elements.myName.textContent = "로그인 필요";
+    elements.myStatus.textContent = "오프라인";
+    elements.myAvatar.textContent = "?";
+    elements.signInButton.hidden = false;
+    elements.signOutButton.hidden = true;
+  }
+}
+
+function renderUserGrid() {
+  elements.userGrid.replaceChildren();
+  const searchFilter = elements.userSearchInput.value.trim().toLowerCase();
+  
+  const allProfiles = Array.from(state.profiles.values());
+  const filtered = allProfiles.filter((p) => {
+    if (state.currentUser && p.uid === state.currentUser.uid) return false;
+    const name = (p.displayName || "").toLowerCase();
+    return name.includes(searchFilter);
+  });
+
+  elements.userCountLabel.textContent = `접속 중인 사용자 (${filtered.length})`;
+
+  if (filtered.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-text";
+    empty.textContent = searchFilter ? "검색 결과가 없습니다." : "표시할 사용자가 없습니다.";
+    elements.userGrid.appendChild(empty);
     return;
   }
 
-  elements.authSummary.textContent = "Google 로그인 후 메시지를 주고받을 수 있습니다.";
-  elements.profileName.value = "";
+  filtered.forEach((profile) => {
+    const card = document.createElement("div");
+    card.className = "user-card";
+    const avatar = createAvatarElement(profile, "avatar-medium");
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "user-card-name";
+    nameSpan.textContent = profile.displayName || "사용자";
+
+    card.appendChild(avatar);
+    card.appendChild(nameSpan);
+
+    card.addEventListener("click", () => {
+      void openDirectChat(profile);
+    });
+
+    elements.userGrid.appendChild(card);
+  });
 }
 
-function createAvatar(profile) {
-  const wrapper = document.createElement("span");
-  wrapper.className = "avatar";
-
-  if (profile.photoURL) {
-    const image = document.createElement("img");
-    image.alt = "";
-    image.referrerPolicy = "no-referrer";
-    image.src = profile.photoURL;
-    wrapper.append(image);
-    return wrapper;
+function renderRecentDms() {
+  elements.dmList.replaceChildren();
+  if (state.recentDms.size === 0) {
+    const empty = document.createElement("p");
+    empty.className = "helper-text";
+    empty.textContent = "홈에서 사용자를 선택해 대화를 시작하세요.";
+    elements.dmList.appendChild(empty);
+    return;
   }
 
-  const fallbackName = profile.displayName?.trim() || "사용자";
-  wrapper.textContent = fallbackName.slice(0, 1).toUpperCase();
-  return wrapper;
-}
+  state.recentDms.forEach((profile) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "dm-item";
+    if (state.activeConversation.id === createDirectChatId(state.currentUser?.uid, profile.uid)) {
+      item.classList.add("is-active");
+    }
 
-function formatMessageTime(timestamp) {
-  if (!timestamp?.toDate) {
-    return "전송 중";
-  }
+    const avatar = createAvatarElement(profile, "avatar-small");
+    const name = document.createElement("span");
+    name.className = "dm-name";
+    name.textContent = profile.displayName;
 
-  const messageDate = timestamp.toDate();
-  return new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short"
-  }).format(messageDate);
-}
+    item.appendChild(avatar);
+    item.appendChild(name);
 
-function createNotificationPreview(text) {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+    item.addEventListener("click", () => {
+      void openDirectChat(profile);
+    });
 
-  if (normalizedText.length <= NOTIFICATION_PREVIEW_LENGTH) {
-    return normalizedText;
-  }
-
-  return `${normalizedText.slice(0, NOTIFICATION_PREVIEW_LENGTH - 1)}…`;
-}
-
-function createDirectChatId(firstUid, secondUid) {
-  return [firstUid, secondUid].sort().join("__");
+    elements.dmList.appendChild(item);
+  });
 }
 
 function getActiveMessageCollection() {
   if (state.activeConversation.type === "direct") {
     return collection(db, "directChats", state.activeConversation.id, "messages");
+  } else if (state.activeConversation.type === "server") {
+    return collection(db, "servers", state.activeConversation.id, "messages");
   }
-
   return collection(db, "messages");
 }
 
-function isMessageListNearBottom() {
-  const distanceFromBottom =
-    elements.messageList.scrollHeight - elements.messageList.scrollTop - elements.messageList.clientHeight;
-  return distanceFromBottom < 96;
+function renderActiveConversationHeader() {
+  elements.chatHeaderTitle.textContent = state.activeConversation.title;
+  elements.chatHeaderContext.textContent = state.activeConversation.context;
+  if (state.activeConversation.type === "direct") {
+    elements.chatHeaderPrefix.textContent = "@";
+  } else {
+    elements.chatHeaderPrefix.textContent = "#";
+  }
+  elements.railGeneralBtn.classList.toggle("is-active", state.activeConversation.type === "general" && state.activeView === "chat");
+  updateRailActiveState();
+}
+
+function formatMessageTime(timestamp) {
+  if (!timestamp?.toDate) return "전송 중";
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(timestamp.toDate());
+}
+
+function renderMessages(messages) {
+  elements.messageList.replaceChildren();
+  if (messages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `<h3>대화 내용이 없습니다</h3><p>첫 메시지를 보내보세요!</p>`;
+    elements.messageList.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  messages.forEach((msg) => {
+    const isMine = msg.uid === state.currentUser?.uid;
+    const msgEl = document.createElement("article");
+    msgEl.className = isMine ? "message is-mine" : "message";
+
+    const avatar = createAvatarElement(msg, "avatar-small");
+    const body = document.createElement("div");
+    body.className = "message-body";
+
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    const author = document.createElement("strong");
+    author.textContent = msg.displayName || "사용자";
+    const time = document.createElement("time");
+    time.textContent = formatMessageTime(msg.createdAt);
+
+    meta.appendChild(author);
+    meta.appendChild(time);
+
+    const text = document.createElement("p");
+    text.className = "message-text";
+    text.textContent = msg.text;
+
+    body.appendChild(meta);
+    body.appendChild(text);
+
+    msgEl.appendChild(avatar);
+    msgEl.appendChild(body);
+    fragment.appendChild(msgEl);
+  });
+
+  elements.messageList.appendChild(fragment);
 }
 
 function scrollMessagesToBottom() {
@@ -210,130 +337,33 @@ function scrollMessagesToBottom() {
   elements.newMessageButton.hidden = true;
 }
 
-function renderEmptyState(title, description) {
-  elements.messageList.replaceChildren();
-
-  const emptyState = document.createElement("div");
-  emptyState.className = "empty-state";
-
-  const emptyTitle = document.createElement("h3");
-  emptyTitle.textContent = title;
-
-  const emptyDescription = document.createElement("p");
-  emptyDescription.textContent = description;
-
-  emptyState.append(emptyTitle, emptyDescription);
-  elements.messageList.append(emptyState);
-}
-
-function renderActiveConversationHeader() {
-  elements.activeContext.textContent = state.activeConversation.context;
-  elements.activeTitle.textContent = state.activeConversation.title;
-  elements.generalChatButton.classList.toggle("is-active", state.activeConversation.type === "general");
-}
-
-function renderMessages(messages) {
-  elements.messageList.replaceChildren();
-
-  if (messages.length === 0) {
-    renderEmptyState("아직 메시지가 없습니다", "첫 메시지를 보내 대화를 시작하세요.");
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-
-  for (const message of messages) {
-    const isMine = message.uid === state.currentUser?.uid;
-    const messageItem = document.createElement("article");
-    messageItem.className = isMine ? "message is-mine" : "message";
-
-    const avatar = createAvatar(message);
-    const body = document.createElement("div");
-    body.className = "message-body";
-
-    const meta = document.createElement("div");
-    meta.className = "message-meta";
-
-    const author = document.createElement("strong");
-    author.textContent = isMine ? `${message.displayName} (나)` : message.displayName;
-
-    const time = document.createElement("time");
-    time.textContent = formatMessageTime(message.createdAt);
-
-    const text = document.createElement("p");
-    text.className = "message-text";
-    text.textContent = message.text;
-
-    meta.append(author, time);
-    body.append(meta, text);
-    messageItem.append(avatar, body);
-    fragment.append(messageItem);
-  }
-
-  elements.messageList.append(fragment);
-}
-
-function notifyNewMessage(message) {
-  const isOwnMessage = message.uid === state.currentUser?.uid;
-  const canNotify = "Notification" in window && Notification.permission === "granted";
-
-  if (isOwnMessage || !canNotify || document.visibilityState === "visible") {
-    return;
-  }
-
-  const notificationTitle = `${message.displayName} · ${state.activeConversation.title}`;
-  const notificationOptions = {
-    body: createNotificationPreview(message.text),
-    icon: message.photoURL || undefined,
-    tag: `chat-ver2-${state.activeConversation.id}`
-  };
-
-  new Notification(notificationTitle, notificationOptions);
-}
-
 function subscribeActiveMessages() {
   state.unsubscribeMessages?.();
   state.unsubscribeMessages = null;
 
   if (!state.currentUser) {
-    renderEmptyState("로그인이 필요합니다", "Google 계정으로 로그인하면 채팅이 열립니다.");
+    renderMessages([]);
     return;
   }
 
-  const messagesQuery = query(getActiveMessageCollection(), orderBy("createdAt", "desc"), limit(RECENT_MESSAGE_LIMIT));
-  let isInitialSnapshot = true;
+  const q = query(getActiveMessageCollection(), orderBy("createdAt", "desc"), limit(RECENT_MESSAGE_LIMIT));
+  let isInitial = true;
 
   state.unsubscribeMessages = onSnapshot(
-    messagesQuery,
+    q,
     (snapshot) => {
-      const messages = snapshot.docs.map((messageDoc) => ({
-        id: messageDoc.id,
-        ...messageDoc.data()
-      }));
-      const orderedMessages = messages.reverse();
-      const wasNearBottom = isInitialSnapshot || isMessageListNearBottom();
-
-      renderMessages(orderedMessages);
-
-      if (wasNearBottom) {
+      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
+      renderMessages(messages);
+      if (isInitial || elements.messageList.scrollHeight - elements.messageList.scrollTop - elements.messageList.clientHeight < 120) {
         requestAnimationFrame(scrollMessagesToBottom);
       } else {
         elements.newMessageButton.hidden = false;
       }
-
-      if (!isInitialSnapshot) {
-        for (const change of snapshot.docChanges()) {
-          if (change.type === "added") {
-            notifyNewMessage(change.doc.data());
-          }
-        }
-      }
-
-      isInitialSnapshot = false;
-      setStatus("실시간으로 연결되었습니다.", "success");
+      isInitial = false;
+      setStatus("실시간 연결됨", "success");
     },
     (error) => {
-      setStatus(`메시지를 불러오지 못했습니다: ${error.message}`, "error");
+      setStatus(`불러오기 실패: ${error.message}`, "error");
     }
   );
 }
@@ -345,335 +375,258 @@ function openGeneralChat() {
     context: "공개 채널",
     type: "general"
   };
+  switchView("chat");
+  renderActiveConversationHeader();
+  subscribeActiveMessages();
+  renderRecentDms();
+}
 
+async function openDirectChat(profile) {
+  if (!state.currentUser) {
+    setStatus("로그인이 필요합니다.", "error");
+    openSettingsModal();
+    return;
+  }
+  if (profile.uid === state.currentUser.uid) return;
+
+  const chatId = createDirectChatId(state.currentUser.uid, profile.uid);
+  const chatRef = doc(db, "directChats", chatId);
+
+  try {
+    const snap = await getDoc(chatRef);
+    if (!snap.exists()) {
+      await setDoc(chatRef, {
+        id: chatId,
+        participants: [state.currentUser.uid, profile.uid],
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch (err) {
+    console.error(err);
+  }
+
+  state.recentDms.set(profile.uid, profile);
+  state.activeConversation = {
+    id: chatId,
+    title: profile.displayName || "개인 대화",
+    context: "1:1 대화",
+    type: "direct"
+  };
+
+  switchView("chat");
+  renderActiveConversationHeader();
+  subscribeActiveMessages();
+  renderRecentDms();
+}
+
+function openServerChat(server) {
+  state.activeConversation = {
+    id: server.id,
+    title: server.name,
+    context: "서버 채널",
+    type: "server"
+  };
+  switchView("chat");
   renderActiveConversationHeader();
   subscribeActiveMessages();
 }
 
 async function saveUserProfile(user, displayNameOverride = null) {
-  const fallbackName = user.email?.split("@")[0] || "사용자";
-  const displayName = (displayNameOverride || user.displayName || fallbackName).slice(0, PROFILE_NAME_LIMIT);
+  const displayName = (displayNameOverride || user.displayName || user.email?.split("@")[0] || "사용자").slice(0, PROFILE_NAME_LIMIT);
   const profileRef = doc(db, "profiles", user.uid);
-
-  await setDoc(profileRef, {
-    uid: user.uid,
-    displayName,
-    photoURL: user.photoURL || null,
-    updatedAt: serverTimestamp()
-  });
+  await setDoc(
+    profileRef,
+    {
+      uid: user.uid,
+      displayName,
+      photoURL: user.photoURL || null,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
 }
 
 function subscribeProfiles() {
   state.unsubscribeProfiles?.();
-  state.unsubscribeProfiles = null;
-
-  const profilesQuery = query(collection(db, "profiles"), orderBy("displayName", "asc"), limit(50));
-
-  state.unsubscribeProfiles = onSnapshot(
-    profilesQuery,
-    (snapshot) => {
-      state.profiles.clear();
-
-      for (const profileDoc of snapshot.docs) {
-        state.profiles.set(profileDoc.id, profileDoc.data());
-      }
-
-      renderMemberList();
-    },
-    (error) => {
-      setStatus(`사용자 목록을 불러오지 못했습니다: ${error.message}`, "error");
-    }
-  );
+  const q = query(collection(db, "profiles"), orderBy("displayName", "asc"), limit(100));
+  state.unsubscribeProfiles = onSnapshot(q, (snapshot) => {
+    state.profiles.clear();
+    snapshot.docs.forEach((doc) => {
+      state.profiles.set(doc.id, doc.data());
+    });
+    renderUserGrid();
+  });
 }
 
-function renderMemberList() {
-  elements.memberList.replaceChildren();
-  elements.memberCount.textContent = `${state.profiles.size}명`;
+function subscribeServers() {
+  state.unsubscribeServers?.();
+  const q = query(collection(db, "servers"), orderBy("createdAt", "asc"), limit(20));
+  state.unsubscribeServers = onSnapshot(q, (snapshot) => {
+    state.servers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    renderServerRail();
+  });
+}
 
-  if (!state.currentUser) {
-    const signedOutText = document.createElement("p");
-    signedOutText.className = "helper-text";
-    signedOutText.textContent = "로그인하면 등록 사용자가 표시됩니다.";
-    elements.memberList.append(signedOutText);
-    return;
-  }
+function renderServerRail() {
+  elements.dynamicServerList.replaceChildren();
+  state.servers.forEach((server) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rail-item server-btn";
+    btn.title = server.name;
+    btn.dataset.serverId = server.id;
+    btn.textContent = server.name.slice(0, 2);
 
-  const fragment = document.createDocumentFragment();
-
-  for (const profile of state.profiles.values()) {
-    const memberItem = document.createElement("article");
-    memberItem.className = "member-item";
-
-    const avatar = createAvatar(profile);
-    const memberText = document.createElement("div");
-    memberText.className = "member-text";
-
-    const name = document.createElement("strong");
-    name.textContent = profile.uid === state.currentUser.uid ? `${profile.displayName} (나)` : profile.displayName;
-
-    const note = document.createElement("span");
-    note.textContent = profile.uid === state.currentUser.uid ? "현재 계정" : "바로 대화 가능";
-
-    const directButton = document.createElement("button");
-    directButton.className = "quiet-button compact";
-    directButton.type = "button";
-    directButton.textContent = "대화";
-    directButton.disabled = profile.uid === state.currentUser.uid;
-    directButton.addEventListener("click", () => {
-      void openDirectChat(profile);
+    btn.addEventListener("click", () => {
+      openServerChat(server);
     });
 
-    memberText.append(name, note);
-    memberItem.append(avatar, memberText, directButton);
-    fragment.append(memberItem);
-  }
-
-  elements.memberList.append(fragment);
-}
-
-async function openDirectChat(profile) {
-  if (!state.currentUser || profile.uid === state.currentUser.uid) {
-    return;
-  }
-
-  const participantIds = [state.currentUser.uid, profile.uid].sort();
-  const participantMap = Object.fromEntries(participantIds.map((uid) => [uid, true]));
-  const chatId = createDirectChatId(state.currentUser.uid, profile.uid);
-  const chatRef = doc(db, "directChats", chatId);
-
-  try {
-    const chatSnapshot = await getDoc(chatRef);
-
-    if (!chatSnapshot.exists()) {
-      await setDoc(chatRef, {
-        id: chatId,
-        participants: participantIds,
-        participantMap,
-        createdBy: state.currentUser.uid,
-        createdAt: serverTimestamp()
-      });
-    }
-  } catch (error) {
-    const retrySnapshot = await getDoc(chatRef);
-
-    if (!retrySnapshot.exists()) {
-      setStatus(`개인 대화를 만들지 못했습니다: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  state.activeConversation = {
-    id: chatId,
-    title: profile.displayName,
-    context: "개인 대화",
-    type: "direct"
-  };
-
-  renderActiveConversationHeader();
-  subscribeActiveMessages();
+    elements.dynamicServerList.appendChild(btn);
+  });
 }
 
 function updateComposerState() {
-  const messageLength = elements.messageInput.value.length;
-  const hasContent = elements.messageInput.value.trim().length > 0;
-  const canSend = Boolean(state.currentUser) && hasContent && messageLength <= MAX_MESSAGE_LENGTH;
-
-  elements.messageCount.textContent = `${messageLength}/${MAX_MESSAGE_LENGTH}`;
-  elements.messageCount.classList.toggle("is-over", messageLength > MAX_MESSAGE_LENGTH);
+  const len = elements.messageInput.value.length;
+  const hasText = elements.messageInput.value.trim().length > 0;
+  const canSend = Boolean(state.currentUser) && hasText && len <= MAX_MESSAGE_LENGTH;
+  
+  elements.messageCount.textContent = `${len}/${MAX_MESSAGE_LENGTH}`;
   elements.sendButton.disabled = !canSend;
+  elements.messageInput.disabled = !state.currentUser;
+  elements.messageInput.placeholder = state.currentUser ? "메시지를 입력하세요..." : "로그인 후 메시지를 작성할 수 있습니다.";
 }
 
-async function sendMessage(event) {
-  event.preventDefault();
-
-  if (!state.currentUser) {
-    setStatus("로그인 후 전송할 수 있습니다.", "error");
-    return;
-  }
-
-  const messageText = elements.messageInput.value.trim();
-
-  if (!messageText) {
-    setStatus("공백만 있는 메시지는 보낼 수 없습니다.", "error");
-    return;
-  }
-
-  if (messageText.length > MAX_MESSAGE_LENGTH) {
-    setStatus(`메시지는 ${MAX_MESSAGE_LENGTH}자 이하로 입력하세요.`, "error");
-    return;
-  }
+async function sendMessage(e) {
+  e.preventDefault();
+  if (!state.currentUser) return;
+  const text = elements.messageInput.value.trim();
+  if (!text) return;
 
   elements.sendButton.disabled = true;
-
   try {
     await addDoc(getActiveMessageCollection(), {
       uid: state.currentUser.uid,
       displayName: state.currentUser.displayName || "사용자",
       photoURL: state.currentUser.photoURL || null,
-      text: messageText,
+      text,
       createdAt: serverTimestamp()
     });
-
     elements.messageInput.value = "";
     updateComposerState();
-    setStatus("메시지를 보냈습니다.", "success");
-  } catch (error) {
-    setStatus(`메시지 전송에 실패했습니다: ${error.message}`, "error");
+  } catch (err) {
+    setStatus(`전송 실패: ${err.message}`, "error");
   } finally {
     updateComposerState();
     elements.messageInput.focus();
   }
 }
 
-async function signInWithGoogle() {
-  try {
-    setStatus("Google 로그인을 여는 중입니다.");
-    await signInWithPopup(auth, googleProvider);
-  } catch (error) {
-    setStatus(`로그인에 실패했습니다: ${error.message}`, "error");
-  }
-}
+// Modal Handlers
+function openSettingsModal() { elements.settingsModal.hidden = false; }
+function closeSettingsModal() { elements.settingsModal.hidden = true; }
+function openServerModal() { elements.createServerModal.hidden = false; }
+function closeServerModal() { elements.createServerModal.hidden = true; }
 
-async function signOutCurrentUser() {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    setStatus(`로그아웃에 실패했습니다: ${error.message}`, "error");
-  }
-}
-
-async function updateDisplayName(event) {
-  event.preventDefault();
-
+async function createServer(e) {
+  e.preventDefault();
   if (!state.currentUser) {
+    setStatus("서버를 생성하려면 로그인이 필요합니다.", "error");
+    closeServerModal();
+    openSettingsModal();
     return;
   }
-
-  const nextDisplayName = elements.profileName.value.trim();
-
-  if (!nextDisplayName || nextDisplayName.length > PROFILE_NAME_LIMIT) {
-    setStatus(`닉네임은 1~${PROFILE_NAME_LIMIT}자로 입력하세요.`, "error");
-    return;
-  }
+  const name = elements.serverNameInput.value.trim();
+  if (!name) return;
 
   try {
-    await updateProfile(state.currentUser, { displayName: nextDisplayName });
-    await saveUserProfile(state.currentUser, nextDisplayName);
-    elements.authSummary.textContent = `${nextDisplayName}님으로 로그인했습니다.`;
-    setStatus("닉네임을 저장했습니다.", "success");
-  } catch (error) {
-    setStatus(`닉네임 저장에 실패했습니다: ${error.message}`, "error");
+    const serverRef = await addDoc(collection(db, "servers"), {
+      name,
+      createdBy: state.currentUser.uid,
+      createdAt: serverTimestamp()
+    });
+    elements.serverNameInput.value = "";
+    closeServerModal();
+    openServerChat({ id: serverRef.id, name });
+  } catch (err) {
+    setStatus(`서버 생성 실패: ${err.message}`, "error");
   }
 }
 
-async function requestNotificationPermission() {
-  if (!("Notification" in window)) {
-    setStatus("이 브라우저는 웹 알림을 지원하지 않습니다.", "error");
-    return;
+async function updateDisplayName(e) {
+  e.preventDefault();
+  if (!state.currentUser) return;
+  const newName = elements.profileName.value.trim();
+  if (!newName) return;
+
+  try {
+    await updateProfile(state.currentUser, { displayName: newName });
+    await saveUserProfile(state.currentUser, newName);
+    renderUserProfileBar();
+    closeSettingsModal();
+    setStatus("닉네임 변경 성공", "success");
+  } catch (err) {
+    setStatus(`닉네임 변경 실패: ${err.message}`, "error");
   }
-
-  const permission = await Notification.requestPermission();
-
-  if (permission === "granted") {
-    setStatus("알림이 켜졌습니다. 다른 탭에 있을 때 새 메시지를 알려드립니다.", "success");
-    elements.notificationButton.textContent = "알림 켜짐";
-    return;
-  }
-
-  setStatus("알림 권한이 허용되지 않았습니다.", "error");
 }
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem(THEME_STORAGE_KEY, theme);
-  elements.themeButton.textContent = theme === "dark" ? "밝은 테마" : "어두운 테마";
-}
-
-function toggleTheme() {
-  const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-  applyTheme(currentTheme === "dark" ? "light" : "dark");
-}
-
-async function handleAuthChange(user) {
+function handleAuthChange(user) {
   state.currentUser = user;
-  renderAuthState();
+  renderUserProfileBar();
   updateComposerState();
 
-  if (!user) {
-    state.unsubscribeMessages?.();
-    state.unsubscribeProfiles?.();
-    state.unsubscribeMessages = null;
-    state.unsubscribeProfiles = null;
-    state.profiles.clear();
-    renderMemberList();
-    openGeneralChat();
-    setStatus("로그인 대기 중입니다.");
-    return;
-  }
-
-  try {
-    await saveUserProfile(user);
+  if (user) {
+    void saveUserProfile(user);
     subscribeProfiles();
-    openGeneralChat();
-    setStatus("로그인되었습니다.", "success");
-  } catch (error) {
-    setStatus(`프로필 준비에 실패했습니다: ${error.message}`, "error");
+    subscribeServers();
+  } else {
+    state.profiles.clear();
+    state.servers = [];
+    state.recentDms.clear();
+    renderUserGrid();
+    renderRecentDms();
+    renderServerRail();
   }
-}
-
-function handleMessageInputKeydown(event) {
-  const shouldSend =
-    event.key === "Enter" && !event.shiftKey && !state.isComposingKorean && !event.isComposing;
-
-  if (!shouldSend) {
-    return;
-  }
-
-  event.preventDefault();
-  elements.messageForm.requestSubmit();
 }
 
 function bootApp() {
-  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-  const preferredDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const initialTheme = savedTheme || (preferredDark ? "dark" : "light");
+  // Navigation
+  elements.railHomeBtn.addEventListener("click", () => switchView("home"));
+  elements.railGeneralBtn.addEventListener("click", openGeneralChat);
+  elements.addServerBtn.addEventListener("click", openServerModal);
 
-  applyTheme(initialTheme);
+  // Home search filter
+  elements.userSearchInput.addEventListener("input", renderUserGrid);
 
-  elements.generalChatButton.addEventListener("click", openGeneralChat);
-  elements.messageForm.addEventListener("submit", (event) => {
-    void sendMessage(event);
-  });
+  // Settings Modal Events
+  elements.openSettingsBtn.addEventListener("click", openSettingsModal);
+  elements.closeSettingsBtn.addEventListener("click", closeSettingsModal);
+  elements.signInButton.addEventListener("click", () => signInWithPopup(auth, googleProvider));
+  elements.signOutButton.addEventListener("click", () => signOut(auth));
+  elements.profileForm.addEventListener("submit", (e) => void updateDisplayName(e));
+
+  // Server Modal Events
+  elements.closeServerBtn.addEventListener("click", closeServerModal);
+  elements.cancelServerBtn.addEventListener("click", closeServerModal);
+  elements.createServerForm.addEventListener("submit", (e) => void createServer(e));
+
+  // Chat
+  elements.messageForm.addEventListener("submit", (e) => void sendMessage(e));
   elements.messageInput.addEventListener("input", updateComposerState);
-  elements.messageInput.addEventListener("keydown", handleMessageInputKeydown);
-  elements.messageInput.addEventListener("compositionstart", () => {
-    state.isComposingKorean = true;
-  });
-  elements.messageInput.addEventListener("compositionend", () => {
-    state.isComposingKorean = false;
-  });
   elements.newMessageButton.addEventListener("click", scrollMessagesToBottom);
-  elements.notificationButton.addEventListener("click", () => {
-    void requestNotificationPermission();
-  });
-  elements.profileForm.addEventListener("submit", (event) => {
-    void updateDisplayName(event);
-  });
-  elements.signInButton.addEventListener("click", () => {
-    void signInWithGoogle();
-  });
-  elements.signOutButton.addEventListener("click", () => {
-    void signOutCurrentUser();
-  });
-  elements.themeButton.addEventListener("click", toggleTheme);
 
-  renderAuthState();
-  renderMemberList();
-  renderActiveConversationHeader();
-  renderEmptyState("로그인이 필요합니다", "Google 계정으로 로그인하면 전체 채팅과 개인 대화를 사용할 수 있습니다.");
-  onAuthStateChanged(auth, (user) => {
-    void handleAuthChange(user);
+  elements.messageInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !state.isComposingKorean && !e.isComposing) {
+      e.preventDefault();
+      elements.messageForm.requestSubmit();
+    }
   });
+  elements.messageInput.addEventListener("compositionstart", () => { state.isComposingKorean = true; });
+  elements.messageInput.addEventListener("compositionend", () => { state.isComposingKorean = false; });
+
+  onAuthStateChanged(auth, handleAuthChange);
+  switchView("home");
+  subscribeProfiles();
+  subscribeServers();
 }
 
 bootApp();
