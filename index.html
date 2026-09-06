@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Discord Style Chat</title>
+    <!-- 제공해주신 아이콘 이미지 적용 -->
+    <link rel="icon" href="./ChatGPT Image 2026년 9월 6일 오후 10_02_51.png" />
     <link rel="stylesheet" href="./style.css" />
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#1e1f22" />
@@ -30,7 +32,6 @@
           <span>🔗</span>
         </button>
       </nav>
-
       <aside class="sub-sidebar" aria-label="대화 목록">
         <div class="sidebar-header">
           <h2 id="sidebar-title">대화</h2>
@@ -41,7 +42,6 @@
             <div id="dm-list" class="dm-list"></div>
           </div>
         </div>
-
         <div class="user-profile-bar">
           <div class="user-profile-info">
             <div id="my-avatar" class="avatar avatar-small">?</div>
@@ -55,7 +55,6 @@
           </button>
         </div>
       </aside>
-
       <main class="main-area">
         <section id="home-view" class="view-panel">
           <header class="main-header">
@@ -75,7 +74,6 @@
             </div>
           </div>
         </section>
-
         <section id="chat-view" class="view-panel" hidden>
           <header class="main-header">
             <div class="header-title">
@@ -86,7 +84,6 @@
           </header>
           <div id="message-list" class="message-list" aria-live="polite"></div>
           <button id="new-message-button" class="new-message-button" type="button" hidden>새 메시지 보기</button>
-
           <form id="message-form" class="composer-form">
             <div class="composer-inner">
               <textarea
@@ -107,6 +104,7 @@
       </main>
     </div>
 
+    <!-- 각종 모달창들 -->
     <div id="settings-modal" class="modal-overlay" hidden>
       <div class="modal-card">
         <div class="modal-header">
@@ -161,6 +159,28 @@
             <button type="submit" class="primary-button">참가</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- [추가됨] 우클릭 컨텍스트 메뉴 -->
+    <div id="server-context-menu" class="context-menu" hidden>
+      <button id="ctx-server-settings-btn" class="context-menu-item">서버 설정</button>
+    </div>
+
+    <!-- [추가됨] 서버 설정 및 삭제 모달 -->
+    <div id="server-settings-modal" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>서버 설정</h3>
+          <button id="close-server-settings-btn" class="modal-close-btn" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="helper-text" style="margin-bottom: 16px;">서버 관리자(생성자)만 접근 가능한 설정입니다.</p>
+          <div class="settings-actions">
+            <button id="clear-server-chat-btn" class="secondary-button" type="button">채팅 내역 비우기</button>
+            <button id="delete-server-btn" class="danger-button" type="button">서버 삭제</button>
+          </div>
+        </div>
       </div>
     </div>
 
