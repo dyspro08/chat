@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Discord Style Chat</title>
-    <!-- 제공해주신 아이콘 이미지 적용 -->
     <link rel="icon" href="./icon.png" />
     <link rel="stylesheet" href="./style.css" />
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#1e1f22" />
   </head>
   <body>
+    <!-- 배경을 위한 래퍼 -->
+    <div id="bg-overlay"></div>
     <div class="app-shell">
       <nav class="server-rail" aria-label="서버 목록">
         <button id="rail-home-btn" class="rail-item is-active" type="button" title="홈">
@@ -50,9 +51,7 @@
               <span id="my-status" class="user-status-text">오프라인</span>
             </div>
           </div>
-          <button id="open-settings-btn" class="icon-button" type="button" title="설정">
-            ⚙️
-          </button>
+          <button id="open-settings-btn" class="icon-button" type="button" title="설정">⚙️</button>
         </div>
       </aside>
       <main class="main-area">
@@ -64,16 +63,26 @@
             </div>
           </header>
           <div class="home-body">
-            <div class="search-box">
-              <span class="search-icon">🔍</span>
-              <input id="user-search-input" type="text" placeholder="사용자 검색" />
+            <!-- 검색창 및 배경 커스텀 기능 -->
+            <div class="home-controls">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input id="user-search-input" type="text" placeholder="사용자 검색" />
+              </div>
+              <div class="bg-controls">
+                <input type="file" id="bg-upload-input" accept="image/*" hidden />
+                <button id="upload-bg-btn" class="secondary-button" type="button">배경화면 설정</button>
+                <button id="reset-bg-btn" class="danger-button" type="button" hidden>배경 초기화</button>
+              </div>
             </div>
+            
             <div class="user-section">
               <h3 id="user-count-label" class="section-subtitle">접속 중인 사용자 (0)</h3>
               <div id="user-grid" class="user-grid"></div>
             </div>
           </div>
         </section>
+        
         <section id="chat-view" class="view-panel" hidden>
           <header class="main-header">
             <div class="header-title">
@@ -128,6 +137,7 @@
       </div>
     </div>
 
+    <!-- 서버 만들기 모달 -->
     <div id="create-server-modal" class="modal-overlay" hidden>
       <div class="modal-card">
         <div class="modal-header">
@@ -136,7 +146,12 @@
         </div>
         <form id="create-server-form" class="modal-body">
           <label for="server-name-input">서버 이름</label>
-          <input id="server-name-input" type="text" placeholder="새 서버 이름" maxlength="30" required />
+          <input id="server-name-input" type="text" placeholder="새 서버 이름" maxlength="30" required style="margin-bottom: 12px;"/>
+          
+          <!-- 프로필 이미지 추가 부분 -->
+          <label for="server-icon-input">서버 아이콘 (선택)</label>
+          <input id="server-icon-input" type="file" accept="image/*" style="margin-bottom: 8px;"/>
+          
           <div class="modal-footer">
             <button id="cancel-server-btn" class="secondary-button" type="button">취소</button>
             <button type="submit" class="primary-button">생성</button>
@@ -162,20 +177,28 @@
       </div>
     </div>
 
-    <!-- [추가됨] 우클릭 컨텍스트 메뉴 -->
+    <!-- 우클릭 컨텍스트 메뉴 -->
     <div id="server-context-menu" class="context-menu" hidden>
       <button id="ctx-server-settings-btn" class="context-menu-item">서버 설정</button>
     </div>
 
-    <!-- [추가됨] 서버 설정 및 삭제 모달 -->
+    <!-- 서버 설정 및 삭제 모달 -->
     <div id="server-settings-modal" class="modal-overlay" hidden>
       <div class="modal-card">
         <div class="modal-header">
-          <h3>서버 설정</h3>
+          <h3 id="settings-server-name">서버 설정</h3>
           <button id="close-server-settings-btn" class="modal-close-btn" type="button">✕</button>
         </div>
         <div class="modal-body">
           <p class="helper-text" style="margin-bottom: 16px;">서버 관리자(생성자)만 접근 가능한 설정입니다.</p>
+          
+          <!-- 서버 프로필 변경 -->
+          <label>서버 아이콘 변경</label>
+          <div class="input-group" style="margin-bottom: 20px;">
+            <input id="edit-server-icon-input" type="file" accept="image/*" />
+            <button id="update-server-icon-btn" class="primary-button" type="button">변경</button>
+          </div>
+
           <div class="settings-actions">
             <button id="clear-server-chat-btn" class="secondary-button" type="button">채팅 내역 비우기</button>
             <button id="delete-server-btn" class="danger-button" type="button">서버 삭제</button>
