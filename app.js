@@ -88,7 +88,6 @@ const elements = {
   updateServerIconBtn: document.querySelector("#update-server-icon-btn"),
   clearServerChatBtn: document.querySelector("#clear-server-chat-btn"),
   deleteServerBtn: document.querySelector("#delete-server-btn"),
-
   // 배경 커스텀
   bgUploadInput: document.querySelector("#bg-upload-input"),
   uploadBgBtn: document.querySelector("#upload-bg-btn"),
@@ -106,7 +105,9 @@ const state = {
   unsubscribeMessages: null,
   unsubscribeProfiles: null,
   unsubscribeServers: null,
-  contextMenuServer: null
+  contextMenuServer: null,
+  // [수정됨] 알림 켜짐/꺼짐 상태를 로컬 스토리지에서 관리
+  notificationsEnabled: localStorage.getItem("notificationsEnabled") === "true"
 };
 
 auth.languageCode = "ko";
@@ -296,10 +297,33 @@ function subscribeActiveMessages() {
   state.unsubscribeMessages?.();
   const colRef = getActiveMessageCollection();
   const q = query(colRef, orderBy("createdAt", "asc"), limit(RECENT_MESSAGE_LIMIT));
+  
+  // 최초 로드 시에는 알림이 울리지 않도록 플래그 설정
+  let isInitialLoad = true; 
+
   state.unsubscribeMessages = onSnapshot(q, (snapshot) => {
     const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     const isAtBottom = elements.messageList.scrollHeight - elements.messageList.scrollTop <= elements.messageList.clientHeight + 120;
     renderMessages(messages);
+    
+    // [수정됨] 새 메시지가 추가되었고, 사용자가 알림을 켰다면 알림 발생
+    if (!isInitialLoad && state.notificationsEnabled && Notification.permission === "granted") {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const msg = change.doc.data();
+          // 내가 보낸 메시지가 아닐 때만 알림
+          if (state.currentUser && msg.uid !== state.currentUser.uid) {
+            new Notification(`${msg.displayName || "사용자"}`, { 
+              body: msg.text,
+              icon: "./icon.png"
+            });
+          }
+        }
+      });
+    }
+    
+    isInitialLoad = false;
+
     if (isAtBottom) scrollMessagesToBottom();
     else elements.newMessageButton.hidden = false;
   }, (err) => {
@@ -354,11 +378,27 @@ function subscribeProfiles() {
   });
 }
 
+// [수정됨] 내가 속한(참가한) 서버만 가져오도록 버그 픽스
 function subscribeServers() {
+  if (!state.currentUser) return;
   state.unsubscribeServers?.();
-  const q = query(collection(db, "servers"), orderBy("createdAt", "asc"), limit(20));
+  
+  // Firestore 인덱스 에러를 방지하기 위해 where 조건만 사용 (정렬은 로컬에서 수행)
+  const q = query(
+    collection(db, "servers"),
+    where("members", "array-contains", state.currentUser.uid)
+  );
+
   state.unsubscribeServers = onSnapshot(q, (snapshot) => {
     state.servers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    
+    // 로컬에서 생성일자(createdAt) 기준으로 오름차순 정렬
+    state.servers.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return timeA - timeB;
+    });
+    
     renderServerRail();
   });
 }
@@ -405,13 +445,13 @@ function updateComposerState() {
     setStatus("로그인이 필요합니다. (⚙️ 설정에서 로그인)", "error");
     elements.messageInput.placeholder = "로그인 후 메시지를 작성하세요...";
   } else {
-    // 로그인에 성공했을 때 "준비 중입니다." 문구를 초기화/변경
     setStatus("온라인", "success"); 
     elements.messageInput.placeholder = "메시지를 입력하세요...";
   }
   elements.messageInput.style.height = "auto";
   elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 120) + "px";
 }
+
 async function cleanupOldMessages(colRef) {
   try {
     const q = query(colRef, orderBy("createdAt", "desc"));
@@ -492,13 +532,12 @@ async function createServer(e) {
   if (file) {
     serverImageUrl = await getSmallImageBase64(file);
   }
-
   try {
     const serverRef = await addDoc(collection(db, "servers"), {
       name,
       inviteCode,
       serverImageUrl,
-      members: [state.currentUser.uid],
+      members: [state.currentUser.uid], // 나를 첫 멤버로 등록
       createdBy: state.currentUser.uid,
       createdAt: serverTimestamp()
     });
@@ -520,7 +559,10 @@ async function joinServerByCode(e) {
     const snapshot = await getDocs(q);
     if (snapshot.empty) { setStatus("유효하지 않은 초대 코드입니다.", "error"); return; }
     const serverDoc = snapshot.docs[0];
+    
+    // 서버의 members 배열에 나를 추가 (이미 있다면 arrayUnion 기능에 의해 중복 방지됨)
     await updateDoc(doc(db, "servers", serverDoc.id), { members: arrayUnion(state.currentUser.uid) });
+    
     elements.inviteCodeInput.value = "";
     closeJoinServerModal();
     openServerChat({ id: serverDoc.id, name: serverDoc.data().name, inviteCode: serverDoc.data().inviteCode });
@@ -579,7 +621,7 @@ function bootApp() {
   // 저장된 배경화면 로드
   const savedBg = localStorage.getItem("custom-bg");
   if(savedBg) applyBackground(savedBg);
-
+  
   elements.uploadBgBtn.addEventListener("click", () => elements.bgUploadInput.click());
   elements.resetBgBtn.addEventListener("click", () => {
     localStorage.removeItem("custom-bg");
@@ -612,7 +654,7 @@ function bootApp() {
     };
     reader.readAsDataURL(file);
   });
-
+  
   elements.railHomeBtn.addEventListener("click", () => switchView("home"));
   elements.railGeneralBtn.addEventListener("click", openGeneralChat);
   elements.addServerBtn.addEventListener("click", openServerModal);
@@ -625,10 +667,35 @@ function bootApp() {
   elements.signOutButton.addEventListener("click", () => signOut(auth));
   elements.profileForm.addEventListener("submit", (e) => void updateDisplayName(e));
   
+  // [수정됨] 알림 버튼 초기 UI 반영 및 끄기/켜기 토글 기능 연동
+  if (state.notificationsEnabled) {
+    elements.notificationButton.textContent = "알림 끄기";
+    elements.notificationButton.classList.replace("secondary-button", "danger-button");
+  }
+
   elements.notificationButton.addEventListener("click", async () => {
-    if (!("Notification" in window)) { alert("알림을 지원하지 않습니다."); return; }
-    const p = await Notification.requestPermission();
-    if (p === "granted") alert("알림이 활성화되었습니다!");
+    if (!("Notification" in window)) { alert("브라우저가 알림을 지원하지 않습니다."); return; }
+    
+    if (state.notificationsEnabled) {
+      // 알림 끄기
+      state.notificationsEnabled = false;
+      localStorage.setItem("notificationsEnabled", "false");
+      elements.notificationButton.textContent = "알림 켜기";
+      elements.notificationButton.classList.replace("danger-button", "secondary-button");
+      alert("알림이 꺼졌습니다.");
+    } else {
+      // 알림 켜기
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        state.notificationsEnabled = true;
+        localStorage.setItem("notificationsEnabled", "true");
+        elements.notificationButton.textContent = "알림 끄기";
+        elements.notificationButton.classList.replace("secondary-button", "danger-button");
+        alert("알림이 켜졌습니다!");
+      } else {
+        alert("알림 권한이 차단되어 있습니다. 브라우저 설정에서 권한을 허용해주세요.");
+      }
+    }
   });
   
   elements.closeServerBtn.addEventListener("click", closeServerModal);
@@ -649,17 +716,16 @@ function bootApp() {
   elements.messageInput.addEventListener("compositionstart", () => state.isComposingKorean = true);
   elements.messageInput.addEventListener("compositionend", () => state.isComposingKorean = false);
   
-  // [수정됨] 엔터키(Enter) 전송 & Shift+Enter 줄바꿈 완벽 분리
+  // 엔터키(Enter) 전송 & Shift+Enter 줄바꿈 분리
   elements.messageInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault(); // 기본 줄바꿈 동작 방지
+      e.preventDefault(); 
       if (!state.isComposingKorean) {
         void sendMessage();
       }
     }
-    // Shift + Enter인 경우는 preventDefault를 하지 않으므로 자연스럽게 줄바꿈이 일어납니다.
   });
-
+  
   document.addEventListener("click", () => {
     if (elements.serverContextMenu && !elements.serverContextMenu.hidden) {
       elements.serverContextMenu.hidden = true;
@@ -673,7 +739,7 @@ function bootApp() {
   });
   
   elements.closeServerSettingsBtn.addEventListener("click", () => elements.serverSettingsModal.hidden = true);
-
+  
   // 서버 아이콘 변경 로직
   elements.updateServerIconBtn.addEventListener("click", async () => {
     const server = state.contextMenuServer;
@@ -707,7 +773,7 @@ function bootApp() {
       } catch (err) { setStatus(`삭제 실패: ${err.message}`, "error"); }
     }
   });
-
+  
   elements.deleteServerBtn.addEventListener("click", async () => {
     const server = state.contextMenuServer;
     if (!server || !state.currentUser) return;
@@ -723,13 +789,10 @@ function bootApp() {
       } catch (err) { setStatus(`삭제 실패: ${err.message}`, "error"); }
     }
   });
-
+  
   onAuthStateChanged(auth, handleAuthChange);
-
   updateComposerState();
   openGeneralChat();
-
-
   
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
