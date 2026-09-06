@@ -4,11 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>채팅 앱</title>
-  
-  <!-- PWA를 위한 manifest와 테마 컬러 설정 -->
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#5865f2">
-  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,28 +14,29 @@
     <div class="server-rail">
       <button class="rail-item is-active">홈</button>
       <div class="rail-divider"></div>
-      <div class="dynamic-server-list" id="server-list">
-        <!-- 서버 리스트가 동적으로 들어갈 자리 -->
-      </div>
-      <button class="rail-item add-btn" id="open-create-server-btn">+</button>
-      <button class="rail-item" style="color: #43b581; font-size: 20px;" id="open-join-server-btn">🧭</button> <!-- 참가 버튼 추가 -->
+      
+      <!-- 동적 서버 리스트 -->
+      <div class="dynamic-server-list" id="server-list"></div>
+      
+      <button class="rail-item add-btn" id="open-create-server-btn" title="서버 만들기">+</button>
+      <button class="rail-item" style="color: #43b581; font-size: 20px;" id="open-join-server-btn" title="서버 참가">🧭</button>
     </div>
 
     <!-- 2. 서브 사이드바 -->
     <div class="sub-sidebar">
       <div class="sidebar-header">
         <h2 id="current-server-name">홈</h2>
-        <button class="icon-button" id="open-server-settings-btn" title="서버 설정">⚙️</button> <!-- 서버 설정 버튼 추가 -->
+        <button class="icon-button" id="open-server-settings-btn" title="서버 설정">⚙️</button>
       </div>
       <div class="sidebar-content" id="channel-list">
-        <!-- 채널 리스트 들어갈 자리 -->
+        <!-- 채널 리스트 -->
       </div>
       <!-- 유저 프로필 바 -->
       <div class="user-profile-bar">
         <div class="user-profile-info">
           <div class="avatar avatar-small">U</div>
           <div class="user-text">
-            <span class="user-name">사용자</span>
+            <span class="user-name" id="display-user-name">사용자</span>
             <span class="user-status-text">온라인</span>
           </div>
         </div>
@@ -51,10 +49,13 @@
       <div class="main-header">
         <span class="header-prefix">#</span>
         <strong id="current-channel-name">일반 채팅</strong>
+        <span class="header-context" id="server-invite-display"></span> <!-- 초대 코드 표시 영역 -->
       </div>
+      
       <div class="message-list" id="message-list">
-        <!-- 채팅 메시지 들어갈 자리 -->
+        <!-- 채팅 메시지 -->
       </div>
+      
       <div class="composer-form">
         <div class="composer-inner">
           <textarea id="message-input" placeholder="메시지 보내기..." rows="1"></textarea>
@@ -83,7 +84,7 @@
     </div>
   </div>
 
-  <!-- 서버 참가하기 모달 (추가됨) -->
+  <!-- 서버 참가하기 모달 -->
   <div id="join-server-modal" class="modal-overlay" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -100,7 +101,7 @@
     </div>
   </div>
 
-  <!-- 서버 설정 (프로필 수정) 모달 (추가됨) -->
+  <!-- 서버 설정 모달 -->
   <div id="server-settings-modal" class="modal-overlay" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -117,7 +118,7 @@
     </div>
   </div>
 
-  <!-- 유저 설정 모달 (배경 커스텀 기능 추가됨) -->
+  <!-- 사용자 설정 모달 -->
   <div id="user-settings-modal" class="modal-overlay" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -125,9 +126,10 @@
         <button class="modal-close-btn" onclick="document.getElementById('user-settings-modal').hidden = true">✕</button>
       </div>
       <div class="modal-body">
+        <label class="section-label" style="display:block; margin-bottom:8px;">개인 배경화면 (로컬 저장)</label>
         <div class="input-group">
-          <input type="text" id="bg-url-input" placeholder="개인 배경화면 이미지 URL">
-          <button class="secondary-button" id="save-bg-btn">배경 적용</button>
+          <input type="text" id="bg-url-input" placeholder="이미지 URL 입력">
+          <button class="secondary-button" id="save-bg-btn">적용</button>
         </div>
       </div>
     </div>
