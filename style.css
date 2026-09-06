@@ -3,6 +3,11 @@
  * 주요 색상 palette: #1e1f22 (최좌측 레일), #2b2d31 (사이드바), #313338 (메인 영역), #383a40 (입력창/카드)
  */
 
+/* 🚨 [핵심 수정] HTML hidden 속성이 CSS display(flex 등)에 의해 무시되지 않도록 최우선으로 강제 숨김 처리 */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --bg-rail: #1e1f22;
   --bg-sidebar: #2b2d31;
@@ -451,7 +456,7 @@ html, body {
   position: fixed;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
+  display: flex; /* hidden 클래스가 활성화되면 상단 [hidden] 규칙에 의해 덮어씌워짐 */
   align-items: center;
   justify-content: center;
   z-index: 100;
