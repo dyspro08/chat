@@ -22,7 +22,7 @@ const firebaseConfig = {
 };
 
 const RECENT_MESSAGE_LIMIT = 80;
-const MAX_MESSAGES_CLEANUP = 250;
+const MAX_MESSAGES_CLEANUP = 5000;
 const MAX_MESSAGE_LENGTH = 500;
 const PROFILE_NAME_LIMIT = 40;
 const GENERAL_CHAT_ID = "general";
