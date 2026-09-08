@@ -21,7 +21,7 @@ const firebaseConfig = {
   measurementId: "G-ZHM9VZWDD0"
 };
 
-const RECENT_MESSAGE_LIMIT = 800;
+const RECENT_MESSAGE_LIMIT = 80;
 const MAX_MESSAGES_CLEANUP = 250;
 const MAX_MESSAGE_LENGTH = 500;
 const PROFILE_NAME_LIMIT = 40;
