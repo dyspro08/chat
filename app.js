@@ -296,22 +296,25 @@ function scrollMessagesToBottom() {
 function subscribeActiveMessages() {
   state.unsubscribeMessages?.();
   const colRef = getActiveMessageCollection();
-  const q = query(colRef, orderBy("createdAt", "asc"), limit(RECENT_MESSAGE_LIMIT));
   
+  // [수정됨] "desc"로 정렬하여 가장 최신 메시지 80개를 가져옵니다.
+  const q = query(colRef, orderBy("createdAt", "desc"), limit(RECENT_MESSAGE_LIMIT));
+
   // 최초 로드 시에는 알림이 울리지 않도록 플래그 설정
   let isInitialLoad = true; 
 
   state.unsubscribeMessages = onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    // [수정됨] 최신 80개를 가져온 후, 화면 아래쪽에 최신 글이 오도록 배열을 .reverse()로 뒤집어줍니다.
+    const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
+    
     const isAtBottom = elements.messageList.scrollHeight - elements.messageList.scrollTop <= elements.messageList.clientHeight + 120;
     renderMessages(messages);
     
-    // [수정됨] 새 메시지가 추가되었고, 사용자가 알림을 켰다면 알림 발생
+    // 새 메시지 알림 로직
     if (!isInitialLoad && state.notificationsEnabled && Notification.permission === "granted") {
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added") {
           const msg = change.doc.data();
-          // 내가 보낸 메시지가 아닐 때만 알림
           if (state.currentUser && msg.uid !== state.currentUser.uid) {
             new Notification(`${msg.displayName || "사용자"}`, { 
               body: msg.text,
