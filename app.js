@@ -15,13 +15,13 @@ const firebaseConfig = {
   apiKey: "AIzaSyA2xiGVR1OJfHoQsBqIQkzRvDA5jqnWSAA",
   authDomain: "chat-ver2-24bb0.firebaseapp.com",
   projectId: "chat-ver2-24bb0",
-  storageBucket: "chat-ver2-24bb0.firebasestorage.app",
+  storageBucket: "chat-ver2-24bb0.firebaestorage.app",
   messagingSenderId: "597207494943",
   appId: "1:597207494943:web:7714f8a6c74e64f304c02a",
   measurementId: "G-ZHM9VZWDD0"
 };
 
-const RECENT_MESSAGE_LIMIT = 80;
+const RECENT_MESSAGE_LIMIT = 800;
 const MAX_MESSAGES_CLEANUP = 5000;
 const MAX_MESSAGE_LENGTH = 500;
 const PROFILE_NAME_LIMIT = 40;
